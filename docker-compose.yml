@@ -1,3 +1,23 @@
-version: '3
+version: '3.6'
 services:
-  
+  jenkins:
+    image: "jenkinsci/blueocean"
+    container_name: "jenkins"
+    volumes:
+    - ~jenkins/jenkins_home/:/var/jenkins_home
+    - /var/run/docker.sock:/var/run/docker.sock:rw
+    - /usr/bin/docker:/usr/bin/docker
+#  network_mode: host
+    ports:
+    - 8080:8080
+    restart: always
+  tf:
+    image: "hashicorp/terraform:0.14.8"
+    container_name: "tform"
+    volumes:
+    - .:/infra
+    working_dir: /infra
+    environment:
+    - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+    - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
