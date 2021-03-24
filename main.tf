@@ -1,6 +1,6 @@
 provider "aws" {
   region  = "eu-central-1"
-  version = "~> 3.33.0"
+#  version = "~> 3.33.0"
 }
 
 # Задаем какой instance поднимать
