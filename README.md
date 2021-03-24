@@ -14,3 +14,4 @@ udo yum install docker
 sudo yum install java-1.8.0-openjdk
 
 
+docker-compose run --rm tf init
