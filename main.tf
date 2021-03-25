@@ -2,6 +2,28 @@
 provider "aws" {
   region  = "eu-central-1"
 }
+//ALC
+resource "aws_launch_configuration" "back" {
+  name_prefix = "back-"
+
+  image_id = "ami-0de9f803fcac87f46" # Amazon Linux 2 AMI (HVM), SSD Volume Type
+  instance_type = "t2.micro"
+
+  security_groups = [ aws_security_group.allow_http.id ]
+  associate_public_ip_address = true
+
+  user_data = <<EOF
+#!/bin/bash
+sudo amazon-linux-extras install nginx1.12 -y
+ip_instance=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
+echo "<h3>IP of this instance:</h3><h2 style="color:red"> $ip_instance</h2><br>Build by Terraform" > /usr/share/nginx/html/index.html
+sudo service nginx start
+chkconfig nginx on
+EOF
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 
 //VPC subnet
 resource "aws_vpc" "tf_vpc" {
@@ -85,28 +107,6 @@ resource "aws_security_group" "allow_http" {
 
   tags = {
     Name = "Allow HTTP Security Group"
-  }
-}
-//ALC
-resource "aws_launch_configuration" "back" {
-  name_prefix = "back-"
-
-  image_id = "ami-0de9f803fcac87f46" # Amazon Linux 2 AMI (HVM), SSD Volume Type
-  instance_type = "t2.micro"
-
-  security_groups = [ aws_security_group.allow_http.id ]
-  associate_public_ip_address = true
-
-  user_data = <<EOF
-#!/bin/bash
-sudo amazon-linux-extras install nginx1.12 -y
-ip_instance=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
-echo "<h3>IP of this instance:</h3><h2 style="color:red"> $ip_instance</h2><br>Build by Terraform" > /usr/share/nginx/html/index.html
-sudo service nginx start
-chkconfig nginx on
-EOF
-  lifecycle {
-    create_before_destroy = true
   }
 }
 //ELB
