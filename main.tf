@@ -246,13 +246,13 @@ resource "aws_cloudwatch_metric_alarm" "cpu_alarm_up" {
   alarm_name = "cpu_alarm_up"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods = "2"
-  metric_name = "CPUUtilization"
-#   metric_name = "NetworkPacketsIn"  # по количеству пакетов
+#  metric_name = "CPUUtilization"
+  metric_name = "NetworkPacketsIn"  # по количеству пакетов
   namespace = "AWS/EC2"
   period = "60"
   statistic = "Average"
-  threshold = "60"
-#  threshold = "10000"  #  количество пакетов
+#  threshold = "60"
+  threshold = "10000"  #  количество пакетов
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.back.name
@@ -274,13 +274,13 @@ resource "aws_cloudwatch_metric_alarm" "cpu_alarm_down" {
   alarm_name = "cpu_alarm_down"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods = "2"
-  metric_name = "CPUUtilization"
-#   metric_name = "NetworkPacketsIn"  # по количеству пакетов
+#  metric_name = "CPUUtilization"
+   metric_name = "NetworkPacketsIn"  # по количеству пакетов
   namespace = "AWS/EC2"
   period = "60"
   statistic = "Average"
-  threshold = "20"
-#    threshold = "2000"
+#  threshold = "20"
+    threshold = "2000"
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.back.name
