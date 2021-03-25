@@ -13,5 +13,9 @@ To implement the instructions in this post, you will need the following accounts
 udo yum install docker
 sudo yum install java-1.8.0-openjdk
 
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+sudo yum -y install terraform
+
 
 docker-compose run --rm tf init
