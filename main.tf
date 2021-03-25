@@ -12,7 +12,7 @@ resource "aws_launch_configuration" "back" {
   instance_type   = "t2.micro"
   key_name        = "FirstAWS-VM"  #имя пары ключей для instance с Jenkins
 #  security_groups = aws_security_group.back.name  # связываем с  SG, описанной ниже
-  security_groups = [aws_security_group.back_http.id]
+  security_groups = [aws_security_group.http_back.id]
   user_data = <<EOF
 #!/bin/bash
 sudo amazon-linux-extras install nginx1.12 -y
@@ -29,8 +29,8 @@ EOF
 
 # Добавим security group
 
-resource "aws_security_group" "back_http" {
-  name        = "back_http"
+resource "aws_security_group" "http_back" {
+  name        = "http_back"
   description = "Security group for Terraform: http allow"
   
   ingress {
@@ -49,7 +49,7 @@ resource "aws_security_group" "back_http" {
   }
 
   tags = {
-    Name = "http_access"
+    Name = "http_back"
   }
 }
 
