@@ -1,17 +1,21 @@
 //Provider
 provider "aws" {
   region  = "eu-central-1"
+#  version = "~> 3.33.0"
 }
-//ALC
+
+# Задаем Launch Configurations (какой instance поднимать)
+
 resource "aws_launch_configuration" "back" {
   name_prefix = "back-"
-
-  image_id = "ami-0de9f803fcac87f46" # Amazon Linux 2 AMI (HVM), SSD Volume Type
-  instance_type = "t2.micro"
-
-  security_groups = [ aws_security_group.allow_http.id ]
+#  ami             = "ami-013fffc873b1eaa1c" # Последний Amazon Linux 2 AMI (HVM) используем, если разворачиваем 1 instance (resource "aws_instance")
+  image_id        = "ami-013fffc873b1eaa1c" # Последний Amazon Linux 2 AMI (HVM)
+  instance_type   = "t2.micro"
+#  key_name        = "FirstAWS-VM"  #имя пары ключей для instance с Jenkins, делал для работы с terraform в docker 
+#  security_groups = [aws_security_group.http_back_allow.name]  # связываем с  SG, описанной ниже
+  security_groups = [aws_security_group.http_back_allow.id]
   associate_public_ip_address = true
-
+ 
   user_data = <<EOF
 #!/bin/bash
 sudo amazon-linux-extras install nginx1.12 -y
@@ -25,23 +29,51 @@ EOF
   }
 }
 
-//VPC subnet
+# Добавим security group для Launch Configurations, разрешим вход всем по 80 порту
+
+resource "aws_security_group" "http_back_allow" {
+  name        = "http_back_allow"
+  description = "Security group for TF: http allow"
+  vpc_id = aws_vpc.tf_vpc.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]   # слушаем всех
+  }
+
+  egress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"   # любой протокол
+    cidr_blocks     = ["0.0.0.0/0"]   
+  }
+
+  tags = {
+    Name = "Allow HTTP SG fot TF"
+  }
+}
+
+# Создадим Virtual Private Cloud, в котором создадим подсети
+
 resource "aws_vpc" "tf_vpc" {
   cidr_block       = "10.0.0.0/16"
   enable_dns_hostnames = true
 
   tags = {
-    Name = "My VPC"
+    Name = "Terraform_VPC"
   }
 }
+
+# Добавим 2 subnet (availability zones) в которых будут масштабироваться backends
 
 resource "aws_subnet" "public_eu_central_1a" {
   vpc_id     = aws_vpc.tf_vpc.id
   cidr_block = "10.0.0.0/24"
   availability_zone = "eu-central-1a"
-
   tags = {
-    Name = "Public Subnet eu-central-1a"
+    Name = "Zone eu-central-1a"
   }
 }
 
@@ -49,17 +81,18 @@ resource "aws_subnet" "public_eu_central_1b" {
   vpc_id     = aws_vpc.tf_vpc.id
   cidr_block = "10.0.1.0/24"
   availability_zone = "eu-central-1b"
-
   tags = {
-    Name = "Public Subnet eu-central-1b"
+    Name = "Zone eu-central-1b"
   }
 }
+
+# Добавим интернер-шлюз
 
 resource "aws_internet_gateway" "tf_vpc_igw" {
   vpc_id = aws_vpc.tf_vpc.id
 
   tags = {
-    Name = "My VPC - Internet Gateway"
+    Name = "Terraform_VPC - Internet Gateway"
   }
 }
 
@@ -72,9 +105,11 @@ resource "aws_route_table" "tf_vpc_public" {
   }
 
   tags = {
-    Name = "Public Subnets Route Table for My VPC"
+    Name = "Public Subnets Route Table for Terraform_VPC"
   }
 }
+
+# Добавим туда availability zones
 
 resource "aws_route_table_association" "tf_vpc_eu-central-1a_public" {
   subnet_id = aws_subnet.public_eu_central_1a.id
@@ -85,34 +120,11 @@ resource "aws_route_table_association" "tf_vpc_eu-central-1b_public" {
   subnet_id = aws_subnet.public_eu_central_1b.id
   route_table_id = aws_route_table.tf_vpc_public.id
 }
-//ASG
-resource "aws_security_group" "allow_http" {
-  name        = "allow_http"
-  description = "Allow HTTP inbound connections"
-  vpc_id = aws_vpc.tf_vpc.id
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "Allow HTTP Security Group"
-  }
-}
-//ELB
+#  создадим security_group для Elastic Load Balancer
 resource "aws_security_group" "elb_http" {
   name        = "elb_http"
-  description = "Allow HTTP traffic to instances through Elastic Load Balancer"
+  description = "Allow HTTP traffic to instances through ELB"
   vpc_id = aws_vpc.tf_vpc.id
 
   ingress {
@@ -130,9 +142,11 @@ resource "aws_security_group" "elb_http" {
   }
 
   tags = {
-    Name = "Allow HTTP through ELB Security Group"
+    Name = "Allow HTTP through ELB SG"
   }
 }
+
+#   К этой security_group lобавим Load balanser, распределяющий нагрузку по нодам и availability зонам
 
 resource "aws_elb" "back_elb" {
   name = "back-elb"
@@ -145,7 +159,9 @@ resource "aws_elb" "back_elb" {
   ]
 
   cross_zone_load_balancing   = true
-
+  
+ #  Настройка проверки состояния instance
+ 
   health_check {
     healthy_threshold = 2
     unhealthy_threshold = 2
@@ -162,12 +178,13 @@ resource "aws_elb" "back_elb" {
   }
 
 }
-//AutoScallingGroup
+#  Добавляем AutoScallingGroup
+
 resource "aws_autoscaling_group" "back" {
   name = "${aws_launch_configuration.back.name}-asg"
 
   min_size             = 1
-  desired_capacity     = 2
+  desired_capacity     = 1
   max_size             = 4
   health_check_grace_period = 60
   health_check_type    = "ELB"
@@ -205,17 +222,44 @@ resource "aws_autoscaling_group" "back" {
 
 }
 
+# get Load Balancer DNS name as an output from the Terraform infrastructure description:
+
 output "elb_dns_name" {
   value = aws_elb.back_elb.dns_name
 }
-//AutoscalingPolicy
-# ASG Policy
+
+#output "instans_public_dns" {
+#  value = aws_instance.back.public_dns
+#}
+
+#  Добавим правила Autoscaling, при которых увеличивать или уменьшать количество instance
+
 resource "aws_autoscaling_policy" "scale_up" {
   name                   = "scale_up"
   scaling_adjustment     = 1
   adjustment_type        = "ChangeInCapacity"
   cooldown               = 120
   autoscaling_group_name = aws_autoscaling_group.back.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_alarm_up" {
+  alarm_name = "cpu_alarm_up"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods = "2"
+  metric_name = "CPUUtilization"
+#   metric_name = "NetworkPacketsIn"  # по количеству пакетов
+  namespace = "AWS/EC2"
+  period = "60"
+  statistic = "Average"
+  threshold = "60"
+#  threshold = "10000"  #  количество пакетов
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.back.name
+  }
+
+  alarm_description = "Monitor EC2 instance CPU utilization"
+  alarm_actions = [ aws_autoscaling_policy.scale_up.arn ]
 }
 
 resource "aws_autoscaling_policy" "scale_down" {
@@ -226,38 +270,24 @@ resource "aws_autoscaling_policy" "scale_down" {
   autoscaling_group_name = aws_autoscaling_group.back.name
 }
 
-# Cloudwatch
-resource "aws_cloudwatch_metric_alarm" "cloudwatch_high" {
-  alarm_name = "cloudwatch_high-agents"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods = "2"
-
-  metric_name = "NetworkPacketsIn"
-  namespace = "AWS/EC2"
-  period = "60"
-  statistic = "Average"
-  threshold = "60"
-  alarm_description = "This metric monitors ec2 CPU for high utilization on agent hosts"
-  alarm_actions = [aws_autoscaling_policy.scale_up.arn]
-  dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.back.name
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "cloudwatch_low" {
-  alarm_name = "cloudwatch_low-agents"
+resource "aws_cloudwatch_metric_alarm" "cpu_alarm_down" {
+  alarm_name = "cpu_alarm_down"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods = "2"
-
-  metric_name = "NetworkPacketsIn"
+  metric_name = "CPUUtilization"
+#   metric_name = "NetworkPacketsIn"  # по количеству пакетов
   namespace = "AWS/EC2"
   period = "60"
   statistic = "Average"
   threshold = "20"
-  alarm_description = "This metric monitors ec2 CPU for low utilization on agent hosts"
-  alarm_actions = [aws_autoscaling_policy.scale_down.arn]
+#    threshold = "2000"
+
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.back.name
   }
+
+  alarm_description = "Monitor EC2 instance CPU utilization"
+  alarm_actions = [ aws_autoscaling_policy.scale_down.arn ]
 }
+
 
