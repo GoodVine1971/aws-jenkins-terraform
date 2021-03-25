@@ -5,9 +5,10 @@ provider "aws" {
 
 # Задаем какой instance поднимать
 
-resource "aws_instance" "back" {
+resource "aws_launch_configuration" "back" {
   name_prefix = "back-"
-  ami             = "ami-013fffc873b1eaa1c" # Последний Amazon Linux 2 AMI (HVM)
+#  ami             = "ami-013fffc873b1eaa1c" # Последний Amazon Linux 2 AMI (HVM)
+  image_id         = "ami-013fffc873b1eaa1c" # Последний Amazon Linux 2 AMI (HVM)
   instance_type   = "t2.micro"
   key_name        = "FirstAWS-VM"  #имя пары ключей для instance с Jenkins
 #  security_groups = aws_security_group.back.id  # связываем с  SG, описанной ниже
@@ -16,7 +17,7 @@ resource "aws_instance" "back" {
 #!/bin/bash
 sudo amazon-linux-extras install nginx1.12 -y
 ip_instance=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
-echo "<h3>IP of this instans:</h3><h2 style="color:red"> $ip_instance</h2><br>Build by Terraform" > /usr/share/nginx/html/index.html
+echo "<h3>IP of this instance:</h3><h2 style="color:red"> $ip_instance</h2><br>Build by Terraform" > /usr/share/nginx/html/index.html
 sudo service nginx start
 chkconfig nginx on
 EOF
@@ -177,7 +178,7 @@ resource "aws_elb" "back_elb" {
 #  Добавляем AutoScallingGroup
 
 resource "aws_autoscaling_group" "back" {
-  name = "${aws_instance.back.name}-asg"
+  name = "${aws_launch_configuration.back.name}-asg"
 
   min_size             = 1
   desired_capacity     = 2
@@ -188,7 +189,7 @@ resource "aws_autoscaling_group" "back" {
     aws_elb.back_elb.id
   ]
 
-  launch_configuration = aws_instance.back.name
+  launch_configuration = aws_launch_configuration.back.name
 
   enabled_metrics = [
     "GroupMinSize",
