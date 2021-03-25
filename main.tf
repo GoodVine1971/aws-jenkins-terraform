@@ -87,7 +87,7 @@ resource "aws_subnet" "public_eu_central_1b" {
 
 # Добавим интернер-шлюз
 
-resource "aws_inet_gateway" "tf_vpc_igate" {
+resource "aws_internet_gateway" "tf_vpc_igate" {
   vpc_id = aws_vpc.tf_vpc.id
 
   tags = {
@@ -100,7 +100,7 @@ resource "aws_route_table" "tf_vpc_public" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_inet_gateway.tf_vpc_igate.id
+    gateway_id = aws_internet_gateway.tf_vpc_igate.id
   }
 
   tags = {
