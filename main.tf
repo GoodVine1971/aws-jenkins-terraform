@@ -30,7 +30,7 @@ EOF
 # Добавим security group
 
 resource "aws_security_group" "back" {
-  name        = "sg_back"
+  name        = "back_http"
   description = "Security group for Terraform: http allow"
   
   ingress {
