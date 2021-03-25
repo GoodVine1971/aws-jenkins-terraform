@@ -1,5 +1,7 @@
 //Provider
-provider "aws" {}
+provider "aws" {
+  region  = "eu-central-1"
+}
 
 //VPC subnet
 resource "aws_vpc" "tf_vpc" {
