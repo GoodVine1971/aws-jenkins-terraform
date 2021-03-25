@@ -10,7 +10,7 @@ resource "aws_instance" "back" {
   instance_type   = "t2.micro"
   key_name        = "FirstAWS-VM"  #имя пары ключей для instance с Jenkins
 #  security_groups = aws_security_group.back.id  # связываем с  SG, описанной ниже
- security_groups = aws_security_group.back.name
+ security_groups = [aws_security_group.back.name]
   user_data = <<EOF
 #!/bin/bash
 sudo amazon-linux-extras install nginx1.12 -y
